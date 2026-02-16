@@ -70,4 +70,19 @@ public abstract class AbstractRoleAssignment implements RoleAssignment {
         return Objects.hash(assignmentId);
     }
 
+    public String summary() {
+        String type = assignmentType();
+        String status = isActive() ? "ACTIVE" : "INACTIVE";
+        String reason = metadata().reason().isEmpty() ? "Не указана" : metadata().reason();
+
+        return String.format("[%s] %s назначена %s пользователем %s в %s\nПричина: %s\nСтатус: %s",
+                type,
+                role().getName(),
+                user().username(),
+                metadata().assignedBy(),
+                metadata().assignedAt(),
+                reason,
+                status
+        );
+
 }
