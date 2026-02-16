@@ -2,6 +2,7 @@ package record;
 
 public record User(String username, String fullname, String email) {
 
+    //Компактный конструктор
     public User {
         if (username == null || fullname == null || email == null) {
             throw new IllegalArgumentException("Поля конструктора User не могут быть равны null");
