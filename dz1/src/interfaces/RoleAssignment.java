@@ -13,4 +13,22 @@ public interface RoleAssignment {
     AssignmentMetadata metadata();
     boolean isActive();
     String assignmentType();
+
+    default String format() {
+        String status = isActive() ? "ACTIVE" : "INACTIVE";
+        return String.format("%s | %s | %s | %s | %s",
+                user().username(),
+                role().getName(),
+                metadata().assignedBy(),
+                metadata().assignedAt(),
+                status
+        );
+    }
+    default boolean isPermanent() {
+        return TYPE_PERMANENT.equals(assignmentType());
+    }
+
+    default boolean isTemporary() {
+        return TYPE_TEMPORARY.equals(assignmentType());
+    }
 }
