@@ -1,8 +1,8 @@
 package managers;
 
 import filters.RoleFilter;
+import interfaces.RoleAssignment;
 import record.Permission;
-import record.User;
 import role.Role;
 
 import java.util.*;
@@ -13,9 +13,14 @@ public class RoleManager implements Repository<Role>{
     private final Map<String, Role> rolesById = new HashMap<>();
     private final Map<String, Role> rolesByName = new HashMap<>();
     private UserManager userManager;
+    private AssignmentManager assignmentManager;
 
     public void setUserManager(UserManager userManager) {
         this.userManager = userManager;
+    }
+
+    public void setAssignmentManager(AssignmentManager assignmentManager) {
+        this.assignmentManager = assignmentManager;
     }
 
     @Override
@@ -48,7 +53,7 @@ public class RoleManager implements Repository<Role>{
             return false;
         }
 
-        if (userManager != null || isRoleAssigned(role)) {
+        if (userManager != null && isRoleAssigned(role)) {
             throw new IllegalStateException(  "Невозможно удалить роль '" + role.getName() + "', так как она назначена пользователям");
         }
 
@@ -58,13 +63,15 @@ public class RoleManager implements Repository<Role>{
     }
 
     private boolean isRoleAssigned(Role role) {
-        List<User> allUsers = userManager.findAll();
+        List<RoleAssignment> allAssignments = assignmentManager.findAll();
 
-
-        for (User user : allUsers) {
+        for (RoleAssignment assignment : allAssignments) {
+            if (assignment.role().equals(role) && assignment.isActive()) {
+                return true; // роль используется!
+            }
         }
 
-        return false;
+        return false; // роль свободна
     }
 
     @Override
