@@ -9,6 +9,8 @@ import record.Permission;
 import record.User;
 import role.PermanentAssignment;
 import role.Role;
+import util.AuditActions;
+import util.AuditLog;
 
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
@@ -17,12 +19,14 @@ public class RBACSystem {
     private final UserManager userManager;
     private final RoleManager roleManager;
     private final AssignmentManager assignmentManager;
+    private final AuditLog auditLog;
     private String currentUser;
 
     public RBACSystem() {
         this.userManager = new UserManager();
         this.roleManager = new RoleManager();
         this.assignmentManager = new AssignmentManager();
+        this.auditLog = new AuditLog();
 
         assignmentManager.setUserManager(userManager);
         assignmentManager.setRoleManager(roleManager);
@@ -41,6 +45,10 @@ public class RBACSystem {
         return assignmentManager;
     }
 
+    public AuditLog getAuditLog() {
+        return auditLog;
+    }
+
     public void setCurrentUser(String username) {
         this.currentUser = username;
     }
@@ -51,6 +59,7 @@ public class RBACSystem {
 
     public void initialize() {
         System.out.println("Инициализация системы RBAC");
+        auditLog.log(AuditActions.SYSTEM_START, "system", "system", "Запуск системы");
 
         createDefaultPermissions();
 
@@ -125,6 +134,9 @@ public class RBACSystem {
             roleManager.add(adminRole);
             roleManager.add(managerRole);
             roleManager.add(viewerRole);
+            auditLog.log(AuditActions.CREATE_ROLE, "system", "Admin", "Создана роль администратора");
+            auditLog.log(AuditActions.CREATE_ROLE, "system", "Manager", "Создана роль менеджера");
+            auditLog.log(AuditActions.CREATE_ROLE, "system", "Viewer", "Создана роль просмотрщика");
             System.out.println("  Создано 3 роли: Admin, Manager, Viewer");
         } catch (IllegalStateException e) {
             System.out.println("  Роли уже существуют: " + e.getMessage());
@@ -138,6 +150,9 @@ public class RBACSystem {
             User admin = User.validate("admin", "System Administrator", "admin@system.com");
             userManager.add(admin);
             setCurrentUser("admin");
+            auditLog.log(AuditActions.CREATE_USER, "system", "admin",
+                    "Создан администратор системы");
+
             System.out.println("  ✅ Администратор создан: admin");
         } catch (IllegalStateException e) {
             System.out.println("  ⚠️ Администратор уже существует");
@@ -175,6 +190,8 @@ public class RBACSystem {
         try {
             assignmentManager.add(assignment);
             System.out.println("   Роль Admin назначена администратору");
+            auditLog.log(AuditActions.ASSIGN_ROLE, "system", "admin",
+                    "Назначена роль Admin администратору");
         } catch (IllegalStateException e) {
             System.out.println("   Ошибка при назначении: " + e.getMessage());
         }
