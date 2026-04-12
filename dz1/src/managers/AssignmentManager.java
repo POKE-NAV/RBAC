@@ -16,9 +16,10 @@ import java.util.stream.Stream;
 
 import filters.*;
 import role.*;
+import java.util.concurrent.*;
 
 public class AssignmentManager implements Repository<RoleAssignment>{
-    private final Map<String, RoleAssignment> assignmentsById = new HashMap<>();
+    private final ConcurrentMap<String, RoleAssignment> assignmentsById = new ConcurrentHashMap<>();
 
     // Ссылки на другие менеджеры для проверки существования
     private UserManager userManager;
@@ -47,36 +48,38 @@ public class AssignmentManager implements Repository<RoleAssignment>{
         }
 
         String assignmentId = assignment.assignmentId();
-        if (assignmentsById.containsKey(assignmentId)) {
-            throw new IllegalStateException(
-                    "Назначение с ID '" + assignmentId + "' уже существует"
-            );
-        }
+        synchronized (this){
+            if (assignmentsById.containsKey(assignmentId)) {
+                throw new IllegalStateException(
+                        "Назначение с ID '" + assignmentId + "' уже существует"
+                );
+            }
 
-        User user = assignment.user();
-        Optional<User> existingUser = userManager.findByUsername(user.username());
-        if (existingUser.isEmpty()) {
-            throw new IllegalStateException(
-                    "Пользователь '" + user.username() + "' не существует в системе"
-            );
-        }
+            User user = assignment.user();
+            Optional<User> existingUser = userManager.findByUsername(user.username());
+            if (existingUser.isEmpty()) {
+                throw new IllegalStateException(
+                        "Пользователь '" + user.username() + "' не существует в системе"
+                );
+            }
 
-        Role role = assignment.role();
-        Optional<Role> existingRole = roleManager.findByName(role.getName());
-        if (existingRole.isEmpty()) {
-            throw new IllegalStateException(
-                    "Роль '" + role.getName() + "' не существует в системе"
-            );
-        }
+            Role role = assignment.role();
+            Optional<Role> existingRole = roleManager.findByName(role.getName());
+            if (existingRole.isEmpty()) {
+                throw new IllegalStateException(
+                        "Роль '" + role.getName() + "' не существует в системе"
+                );
+            }
 
-        if (hasActiveAssignment(user, role)) {
-            throw new IllegalStateException(
-                    "Пользователь '" + user.username() + "' уже имеет активное назначение на роль '" +
-                            role.getName() + "'"
-            );
-        }
+            if (hasActiveAssignment(user, role)) {
+                throw new IllegalStateException(
+                        "Пользователь '" + user.username() + "' уже имеет активное назначение на роль '" +
+                                role.getName() + "'"
+                );
+            }
 
-        assignmentsById.put(assignmentId, assignment);
+            assignmentsById.put(assignmentId, assignment);
+        }
     }
 
     private boolean hasActiveAssignment(User user, Role role) {
@@ -267,21 +270,23 @@ public class AssignmentManager implements Repository<RoleAssignment>{
             throw new IllegalArgumentException("ID назначения не может быть пустым");
         }
 
-        RoleAssignment assignment = assignmentsById.get(assignmentId);
-        if (assignment == null) {
-            throw new IllegalArgumentException(
-                    "Назначение с ID '" + assignmentId + "' не найдено"
-            );
-        }
+        synchronized (this) {
+            RoleAssignment assignment = assignmentsById.get(assignmentId);
+            if (assignment == null) {
+                throw new IllegalArgumentException(
+                        "Назначение с ID '" + assignmentId + "' не найдено"
+                );
+            }
 
-        if (assignment instanceof PermanentAssignment) {
-            PermanentAssignment permanent = (PermanentAssignment) assignment;
-            permanent.revoke();
-        } else {
+            if (assignment instanceof PermanentAssignment) {
+                PermanentAssignment permanent = (PermanentAssignment) assignment;
+                permanent.revoke();
+            } else {
 
-            throw new UnsupportedOperationException(
-                    "Отмена временных назначений будет реализована позже"
-            );
+                throw new UnsupportedOperationException(
+                        "Отмена временных назначений будет реализована позже"
+                );
+            }
         }
     }
 
@@ -303,22 +308,24 @@ public class AssignmentManager implements Repository<RoleAssignment>{
             );
         }
 
-        RoleAssignment assignment = assignmentsById.get(assignmentId);
-        if (assignment == null) {
-            throw new IllegalArgumentException(
-                    "Назначение с ID '" + assignmentId + "' не найдено"
-            );
-        }
+        synchronized (this){
+            RoleAssignment assignment = assignmentsById.get(assignmentId);
+            if (assignment == null) {
+                throw new IllegalArgumentException(
+                        "Назначение с ID '" + assignmentId + "' не найдено"
+                );
+            }
 
-        // Проверяем, что это временное назначение
-        if (!(assignment instanceof TemporaryAssignment)) {
-            throw new IllegalArgumentException(
-                    "Назначение с ID '" + assignmentId + "' не является временным"
-            );
-        }
+            // Проверяем, что это временное назначение
+            if (!(assignment instanceof TemporaryAssignment)) {
+                throw new IllegalArgumentException(
+                        "Назначение с ID '" + assignmentId + "' не является временным"
+                );
+            }
 
-        TemporaryAssignment temporary = (TemporaryAssignment) assignment;
-        temporary.extend(newExpirationDate);
+            TemporaryAssignment temporary = (TemporaryAssignment) assignment;
+            temporary.extend(newExpirationDate);
+        }
     }
 
 

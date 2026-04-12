@@ -8,10 +8,11 @@ import role.Role;
 import java.util.*;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
+import java.util.concurrent.*;
 
 public class RoleManager implements Repository<Role>{
-    private final Map<String, Role> rolesById = new HashMap<>();
-    private final Map<String, Role> rolesByName = new HashMap<>();
+    private final ConcurrentMap<String, Role> rolesById = new ConcurrentHashMap<>();
+    private final ConcurrentMap<String, Role> rolesByName = new ConcurrentHashMap<>();
     private UserManager userManager;
     private AssignmentManager assignmentManager;
 
@@ -30,17 +31,21 @@ public class RoleManager implements Repository<Role>{
         }
 
         String roleName = role.getName();
-        if (rolesByName.containsKey(roleName)) {
-            throw new IllegalStateException("Роль с именем " + roleName + " уже существует");
-        }
-
         String roleId = role.getId();
-        if (rolesById.containsKey(roleId)) {
-            throw new IllegalStateException("Роль с ID " + roleId + " уже существует");
+
+        synchronized (this) {
+            if (rolesByName.containsKey(roleName)) {
+                throw new IllegalStateException("Роль с именем " + roleName + " уже существует");
+            }
+
+            if (rolesById.containsKey(roleId)) {
+                throw new IllegalStateException("Роль с ID " + roleId + " уже существует");
+            }
+
+            rolesById.put(roleId, role);
+            rolesByName.put(roleName, role);
         }
 
-        rolesById.put(roleId, role);
-        rolesByName.put(roleName, role);
     }
 
     @Override
@@ -49,17 +54,19 @@ public class RoleManager implements Repository<Role>{
             return false;
         }
 
-        if (!rolesById.containsKey(role.getId())) {
-            return false;
-        }
+        synchronized (this){
+            if (!rolesById.containsKey(role.getId())) {
+                return false;
+            }
 
-        if (userManager != null && isRoleAssigned(role)) {
-            throw new IllegalStateException(  "Невозможно удалить роль '" + role.getName() + "', так как она назначена пользователям");
-        }
+            if (userManager != null && isRoleAssigned(role)) {
+                throw new IllegalStateException("Невозможно удалить роль '" + role.getName() + "', так как она назначена пользователям");
+            }
 
-        rolesById.remove(role.getId());
-        rolesByName.remove(role.getName());
-        return true;
+            rolesById.remove(role.getId());
+            rolesByName.remove(role.getName());
+            return true;
+        }
     }
 
     private boolean isRoleAssigned(Role role) {
@@ -94,8 +101,10 @@ public class RoleManager implements Repository<Role>{
 
     @Override
     public void clear() {
-        rolesById.clear();
-        rolesByName.clear();
+        synchronized (this) {
+            rolesById.clear();
+            rolesByName.clear();
+        }
     }
 
     public Optional<Role> findByName(String name) {
@@ -144,13 +153,15 @@ public class RoleManager implements Repository<Role>{
             throw new IllegalArgumentException("Право не может быть null");
         }
 
-        Role role = rolesByName.get(roleName);
+        synchronized (this) {
+            Role role = rolesByName.get(roleName);
 
-        if (role == null) {
-            throw new IllegalArgumentException("Роль с именем '" + roleName + "' не найдена");
+            if (role == null) {
+                throw new IllegalArgumentException("Роль с именем '" + roleName + "' не найдена");
+            }
+
+            role.addPermissions(permission);
         }
-
-        role.addPermissions(permission);
     }
 
     public void removePermissionFromRole(String roleName, Permission permission) {
@@ -162,13 +173,15 @@ public class RoleManager implements Repository<Role>{
             throw new IllegalArgumentException("Право не может быть null");
         }
 
-        Role role = rolesByName.get(roleName);
+        synchronized (this){
+            Role role = rolesByName.get(roleName);
 
-        if (role == null) {
-            throw new IllegalArgumentException("Роль с именем '" + roleName + "' не найдена");
+            if (role == null) {
+                throw new IllegalArgumentException("Роль с именем '" + roleName + "' не найдена");
+            }
+
+            role.removePermission(permission);
         }
-
-        role.removePermission(permission);
     }
 
     public List<Role> findRolesWithPermission(String permissionName, String resource) {

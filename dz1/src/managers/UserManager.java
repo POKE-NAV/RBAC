@@ -3,11 +3,13 @@ import filters.UserFilter;
 import record.User;
 
 import java.util.*;
+import java.util.concurrent.locks.ReentrantLock;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
-
+import java.util.concurrent.*;
 public class UserManager implements Repository<User> {
-    private final Map<String, User> users = new HashMap<>();
+    private final ConcurrentMap<String, User> users = new ConcurrentHashMap<>();
+    private final ReentrantLock lock = new ReentrantLock();
 
     @Override
     public void add(User user) {
@@ -16,10 +18,10 @@ public class UserManager implements Repository<User> {
         }
 
         String username = user.username();
-        if (users.containsKey(username)) {
+        User error = users.putIfAbsent(username, user);
+        if (error != null) {
             throw new IllegalStateException("Пользователь с username " + username + " уже существует");
         }
-        users.put(username, user);
     }
 
     @Override
@@ -81,17 +83,23 @@ public class UserManager implements Repository<User> {
     }
 
     public void update(String username, String newFullName, String newEmail) {
-        if (username == null || username.isBlank()) {
-            throw new IllegalArgumentException("Username не может быть пустым");
+        lock.lock();
+        try {
+            if (username == null || username.isBlank()) {
+                throw new IllegalArgumentException("Username не может быть пустым");
+            }
+
+            User tempUser = users.get(username);
+            if (tempUser == null) {
+                throw new IllegalArgumentException("Пользователь с username: " + username + " не найден");
+            }
+
+            User updateUser = User.validate(username, newFullName, newEmail);
+            users.put(username, updateUser);
+        } finally {
+          lock.unlock();
         }
 
-        User tempUser = users.get(username);
-        if (tempUser == null) {
-            throw new IllegalArgumentException("Пользователь с username: " + username + " не найден");
-        }
-
-        User updateUser = User.validate(username, newFullName, newEmail);
-        users.put(username, updateUser);
     }
 
     public List<User> findByFilter(UserFilter filter) {
