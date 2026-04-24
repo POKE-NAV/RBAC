@@ -1,5 +1,6 @@
 package command;
 
+import Executor.TaskScheduler;
 import interfaces.RoleAssignment;
 import managers.AssignmentManager;
 import managers.RoleManager;
@@ -22,6 +23,7 @@ public class RBACSystem {
     private final AssignmentManager assignmentManager;
     private final AuditLog auditLog;
     private final BackgroundExecutor backgroundExecutor;
+    private final TaskScheduler taskScheduler;
     private String currentUser;
 
     public RBACSystem() {
@@ -30,10 +32,15 @@ public class RBACSystem {
         this.assignmentManager = new AssignmentManager();
         this.auditLog = new AuditLog();
         this.backgroundExecutor = new BackgroundExecutor();
+        this.taskScheduler = new TaskScheduler(assignmentManager, auditLog);
 
         assignmentManager.setUserManager(userManager);
         assignmentManager.setRoleManager(roleManager);
         roleManager.setAssignmentManager(assignmentManager);
+    }
+
+    public TaskScheduler getTaskScheduler() {
+        return taskScheduler;
     }
 
     public BackgroundExecutor getBackgroundExecutor() {

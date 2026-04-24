@@ -1,6 +1,7 @@
 package command;
 
 import Executor.BackgroundExecutor;
+import Executor.TaskScheduler;
 import filters.*;
 import interfaces.RoleAssignment;
 import record.Permission;
@@ -910,6 +911,70 @@ public class CommandRegistry {
     }
 
     private static void registerUtilityCommands(CommandParser parser) {
+
+        // schedule-start — запуск периодических задач
+        parser.registerCommand("schedule-start", "Запустить периодические задачи", (scanner, system) -> {
+            ConsoleUtils.printHeader("ЗАПУСК ПЕРИОДИЧЕСКИХ ЗАДАЧ");
+
+            TaskScheduler scheduler = system.getTaskScheduler();
+
+            if (scheduler.isRunning()) {
+                ConsoleUtils.printWarning("Периодические задачи уже запущены");
+                return;
+            }
+
+            System.out.println("Настройка интервалов:");
+            System.out.print("Интервал проверки истекших назначений (сек, Enter=30): ");
+            String expiredInterval = scanner.nextLine().trim();
+            long expiredSec = expiredInterval.isEmpty() ? 30 : Long.parseLong(expiredInterval);
+
+            System.out.print("Интервал логирования статистики (сек, Enter=60): ");
+            String statsInterval = scanner.nextLine().trim();
+            long statsSec = statsInterval.isEmpty() ? 60 : Long.parseLong(statsInterval);
+
+            // Запускаем задачи
+            scheduler.startExpiredCheckTask(expiredSec);
+            scheduler.startStatisticsLogTask(
+                    statsSec,
+                    system.getUserManager().count(),
+                    system.getRoleManager().count(),
+                    system.getAssignmentManager().count()
+            );
+
+            ConsoleUtils.printSuccess("Периодические задачи запущены");
+        });
+
+        // schedule-stop — остановка периодических задач
+        parser.registerCommand("schedule-stop", "Остановить периодические задачи", (scanner, system) -> {
+            ConsoleUtils.printHeader("ОСТАНОВКА ПЕРИОДИЧЕСКИХ ЗАДАЧ");
+
+            TaskScheduler scheduler = system.getTaskScheduler();
+
+            if (!scheduler.isRunning()) {
+                ConsoleUtils.printInfo("Нет запущенных периодических задач");
+                return;
+            }
+
+            if (ConsoleUtils.promptYesNo(scanner, "Остановить все периодические задачи?")) {
+                scheduler.stopAllTasks();
+                ConsoleUtils.printSuccess("Периодические задачи остановлены");
+            } else {
+                ConsoleUtils.printInfo("Операция отменена");
+            }
+        });
+
+        // schedule-status — статус периодических задач
+        parser.registerCommand("schedule-status", "Статус периодических задач", (scanner, system) -> {
+            ConsoleUtils.printHeader("СТАТУС ПЕРИОДИЧЕСКИХ ЗАДАЧ");
+
+            TaskScheduler scheduler = system.getTaskScheduler();
+
+            System.out.printf("Задачи запущены: %s\n", scheduler.isRunning() ? "ДА" : "НЕТ");
+            System.out.printf("Активных задач: %d\n", scheduler.getActiveTaskCount());
+
+            ConsoleUtils.printInfo("Для запуска задач используйте 'schedule-start'");
+            ConsoleUtils.printInfo("Для остановки задач используйте 'schedule-stop'");
+        });
 
         // report-workers — асинхронный отчёт через ExecutorService
         parser.registerCommand("report-workers", "Асинхронный отчёт через ExecutorService", (scanner, system) -> {
