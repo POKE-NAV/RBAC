@@ -1,0 +1,10 @@
+# USERS
+USER|admin|System Administrator|admin@system.com
+
+# ROLES
+ROLE|role_1d31efd7-b4e1-40dc-80df-846e57304be0|Viewer|Только просмотр|READ:users:Просмотр пользователей;VIEW:reports:Просмотр отчетов;READ:roles:Просмотр ролей;READ:assignments:Просмотр назначений;
+ROLE|role_ead260fb-d047-4010-9131-3ba18b3883ca|Manager|Управление пользователями и просмотр отчетов|READ:users:Просмотр пользователей;WRITE:users:Редактирование пользователей;VIEW:reports:Просмотр отчетов;READ:roles:Просмотр ролей;READ:assignments:Просмотр назначений;
+ROLE|role_d5e261db-4363-4b8e-a3ea-b71df7eb2b4a|Admin|Полный доступ к системе|READ:users:Просмотр пользователей;WRITE:assignments:Создание/редактирование назначений;VIEW:reports:Просмотр отчетов;WRITE:users:Создание/редактирование пользователей;DELETE:users:Удаление пользователей;READ:roles:Просмотр ролей;DELETE:assignments:Удаление назначений;READ:assignments:Просмотр назначений;DELETE:roles:Удаление ролей;WRITE:roles:Создание/редактирование ролей;
+
+# ASSIGNMENTS
+ASSIGNMENT|assign_094e2235-8201-46e4-bdd7-9895dbce3d1e|admin|Admin|PERMANENT|true|system|2026-04-12 08:03|Автоматическое назначение при инициализации системы|false

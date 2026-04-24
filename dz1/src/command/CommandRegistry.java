@@ -910,36 +910,85 @@ public class CommandRegistry {
 
     private static void registerUtilityCommands(CommandParser parser) {
 
-        // report-users — отчёт по пользователям
-        parser.registerCommand("report-users", "Отчёт по всем пользователям с их ролями", ((scanner, system) -> {
-            ConsoleUtils.printHeader("ГЕНЕРАЦИЯ ОТЧЁТА ПО ПОЛЬЗОВАТЕЛЯМ");
+        parser.registerCommand("report-users-async", "Асинхронный отчёт по пользователям", (scanner, system) -> {
+            ConsoleUtils.printHeader("АСИНХРОННЫЙ ОТЧЁТ ПО ПОЛЬЗОВАТЕЛЯМ");
 
-            ReportGenerator reportGen = new ReportGenerator();
-            String report = reportGen.generateUserReport(system.getUserManager(), system.getAssignmentManager());
+            System.out.println("Генерация отчёта запущена в фоновом режиме...");
 
-            System.out.println(report);
-
-            if (ConsoleUtils.promptYesNo(scanner, "Сохранить отчёт в файл?")) {
-                String filename = ConsoleUtils.promptString(scanner, "Введите имя файла (Enter для user_report.txt)", false);
-                if (filename.isEmpty()) {
-                    filename = "user_report_" + LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMMdd_HHmmss")) + ".txt";
-                }
-                reportGen.exportToFile(report, filename);
-                system.getAuditLog().log(
-                        "REPORT_EXPORT",
-                        system.getCurrentUser(),
-                        "users",
-                        "Экспортирован отчёт по пользователям в файл: " + filename
+            // Запускаем в отдельном потоке
+            Thread thread = new Thread(() -> {
+                ReportGenerator reportGen = new ReportGenerator();
+                String report = reportGen.generateUserReportParallel(
+                        system.getUserManager(),
+                        system.getAssignmentManager()
                 );
+
+                System.out.println(report);
+
+                if (ConsoleUtils.promptYesNo(scanner, "Сохранить отчёт в файл?")) {
+                    String filename = "user_report_async_" +
+                            LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMMdd_HHmmss")) + ".txt";
+                    reportGen.exportToFile(report, filename);
+                }
+            });
+
+            thread.start();
+            System.out.println("✅ Отчёт генерируется в фоновом режиме. Вы можете продолжать работу.");
+        });
+
+        parser.registerCommand("save-async", "Асинхронное сохранение данных", (scanner, system) -> {
+            ConsoleUtils.printHeader("АСИНХРОННОЕ СОХРАНЕНИЕ ДАННЫХ");
+
+            System.out.println("Сохранение данных запущено в фоновом режиме...");
+
+            Thread thread = new Thread(() -> {
+                // Вызываем существующую команду save
+                Command saveCommand = parser.getCommand("save");
+                if (saveCommand != null) {
+                    saveCommand.execute(scanner, system);
+                }
+            });
+
+            thread.start();
+            System.out.println("✅ Данные сохраняются в фоновом режиме. Вы можете продолжать работу.");
+        });
+
+        // report-users — отчёт по пользователям
+        parser.registerCommand("report-users", "Отчёт по пользователям", (scanner, system) -> {
+            ConsoleUtils.printHeader("ОТЧЁТ ПО ПОЛЬЗОВАТЕЛЯМ");
+
+            System.out.println("Выберите режим:");
+            System.out.println("  1 - Синхронный (обычный)");
+            System.out.println("  2 - Асинхронный (фоновый)");
+
+            int choice = ConsoleUtils.promptInt(scanner, "Ваш выбор", 1, 2);
+
+            if (choice == 2) {
+                // Вызываем асинхронную версию
+                parser.executeCommand("report-users-async", scanner, system);
+            } else {
+                // Синхронная версия
+                ReportGenerator reportGen = new ReportGenerator();
+                String report = reportGen.generateUserReportParallel(
+                        system.getUserManager(),
+                        system.getAssignmentManager()
+                );
+                System.out.println(report);
+
+                if (ConsoleUtils.promptYesNo(scanner, "Сохранить отчёт в файл?")) {
+                    String filename = "user_report_" +
+                            LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMMdd_HHmmss")) + ".txt";
+                    reportGen.exportToFile(report, filename);
+                }
             }
-        }));
+        });
 
         // report-roles — отчёт по ролям
         parser.registerCommand("report-roles", "Отчёт по ролям с количеством пользователей", ((scanner, system) -> {
             ConsoleUtils.printHeader("ГЕНЕРАЦИЯ ОТЧЕТА ПО РОЛЯМ");
 
             ReportGenerator reportGen = new ReportGenerator();
-            String report = reportGen.generateRoleReport(system.getRoleManager(), system.getAssignmentManager());
+            String report = reportGen.generateRoleReportParallel(system.getRoleManager(), system.getAssignmentManager());
 
             System.out.println(report);
 
@@ -964,7 +1013,7 @@ public class CommandRegistry {
             ConsoleUtils.printHeader("ГЕНЕРАЦИЯ МАТРИЦЫ ПРАВ");
 
             ReportGenerator reportGen = new ReportGenerator();
-            String report = reportGen.generatePermissionMatrix(
+            String report = reportGen.generatePermissionMatrixParallel(
                     system.getUserManager(),
                     system.getAssignmentManager()
             );

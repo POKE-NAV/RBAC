@@ -114,6 +114,16 @@ public class RoleManager implements Repository<Role>{
         return Optional.ofNullable(rolesByName.get(name));
     }
 
+    public List<Role> findByFilterParallel(RoleFilter filter) {
+        if (filter == null) {
+            return findAll();
+        }
+
+        return rolesById.values().parallelStream()
+                .filter(filter::test)
+                .collect(Collectors.toList());
+    }
+
     public boolean exists(String name) {
         if (name == null || name.isBlank()) {
             return false;

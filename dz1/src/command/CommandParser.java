@@ -19,6 +19,13 @@ public class CommandParser {
         commandDescriptions.put(name.toLowerCase(), description);
     }
 
+    public Command getCommand(String name) {
+        if (name == null || name.isBlank()) {
+            return null;
+        }
+        return commands.get(name.toLowerCase());
+    }
+
     public void executeCommand(String commandName, Scanner scanner, RBACSystem system) {
         if (commandName == null || commandName.isBlank()) {
             System.out.println("Ошибка: Имя команды не может быть пустым");

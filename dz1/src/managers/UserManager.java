@@ -154,6 +154,16 @@ public class UserManager implements Repository<User> {
         return true;
     }
 
+    public List<User> findByFilterParallel(UserFilter filter) {
+        if (filter == null) {
+            return findAll();
+        }
+
+        return users.values().parallelStream()
+                .filter(filter::test)
+                .collect(Collectors.toList());
+    }
+
     @Override
     public int hashCode() {
         int result = 17;
