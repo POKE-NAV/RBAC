@@ -1,5 +1,6 @@
 package command;
 
+import Executor.BackgroundExecutor;
 import filters.*;
 import interfaces.RoleAssignment;
 import record.Permission;
@@ -910,6 +911,135 @@ public class CommandRegistry {
 
     private static void registerUtilityCommands(CommandParser parser) {
 
+        // report-workers — асинхронный отчёт через ExecutorService
+        parser.registerCommand("report-workers", "Асинхронный отчёт через ExecutorService", (scanner, system) -> {
+            ConsoleUtils.printHeader("АСИНХРОННЫЙ ОТЧЁТ (WORKERS)");
+
+            System.out.println("Выберите тип отчёта:");
+            System.out.println("  1 - Отчёт по пользователям");
+            System.out.println("  2 - Отчёт по ролям");
+            System.out.println("  3 - Матрица прав");
+
+            int reportType = ConsoleUtils.promptInt(scanner, "Ваш выбор", 1, 3);
+
+            BackgroundExecutor executor = system.getBackgroundExecutor();
+            long startTime = System.currentTimeMillis();
+
+            System.out.println("Задача отправлена в ExecutorService. ID задачи: " + System.identityHashCode(executor));
+            System.out.println("Активных потоков: " + executor.getActiveCount());
+
+            executor.submit(() -> {
+                try {
+                    long taskStart = System.currentTimeMillis();
+                    System.out.println("Начало генерации отчёта...");
+
+                    ReportGenerator reportGen = new ReportGenerator();
+                    String report = "";
+
+                    switch (reportType) {
+                        case 1:
+                            report = reportGen.generateUserReportParallel(
+                                    system.getUserManager(),
+                                    system.getAssignmentManager()
+                            );
+                            break;
+                        case 2:
+                            report = reportGen.generateRoleReportParallel(
+                                    system.getRoleManager(),
+                                    system.getAssignmentManager()
+                            );
+                            break;
+                        case 3:
+                            report = reportGen.generatePermissionMatrixParallel(
+                                    system.getUserManager(),
+                                    system.getAssignmentManager()
+                            );
+                            break;
+                    }
+
+                    long taskEnd = System.currentTimeMillis();
+                    System.out.println("Отчёт сгенерирован за " + (taskEnd - taskStart) + " мс");
+                    System.out.println(report);
+
+                    if (ConsoleUtils.promptYesNo(new Scanner(System.in), "Сохранить отчёт в файл?")) {
+                        String filename = "worker_report_" +
+                                LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMMdd_HHmmss")) + ".txt";
+                        reportGen.exportToFile(report, filename);
+                    }
+
+                } catch (Exception e) {
+                    System.err.println(" Ошибка при генерации отчёта: " + e.getMessage());
+                }
+            });
+
+            long endTime = System.currentTimeMillis();
+            System.out.println("Задача отправлена за " + (endTime - startTime) + " мс");
+            System.out.println("Отчёт генерируется в фоне. Используйте 'workers-status' для проверки статуса.");
+        });
+
+        // save-workers — асинхронное сохранение через ExecutorService
+        parser.registerCommand("save-workers", "Асинхронное сохранение через ExecutorService", (scanner, system) -> {
+            ConsoleUtils.printHeader("АСИНХРОННОЕ СОХРАНЕНИЕ (WORKERS)");
+
+            BackgroundExecutor executor = system.getBackgroundExecutor();
+
+            System.out.println("Задача сохранения отправлена в ExecutorService");
+            System.out.println("Активных потоков: " + executor.getActiveCount());
+
+            executor.submit(() -> {
+                try {
+                    System.out.println("Начало сохранения данных...");
+                    long startTime = System.currentTimeMillis();
+
+                    // Вызываем существующую команду save
+                    Command saveCommand = parser.getCommand("save");
+                    if (saveCommand != null) {
+                        saveCommand.execute(scanner, system);
+                    }
+
+                    long endTime = System.currentTimeMillis();
+                    System.out.println("Сохранение завершено за " + (endTime - startTime) + " мс");
+
+                } catch (Exception e) {
+                    System.err.println("Ошибка при сохранении: " + e.getMessage());
+                }
+            });
+
+            System.out.println("Задача сохранения отправлена в фоновый режим");
+        });
+
+        // workers-status — статус фоновых задач
+        parser.registerCommand("workers-status", "Статус фоновых задач ExecutorService", (scanner, system) -> {
+            ConsoleUtils.printHeader("СТАТУС BACKGROUND EXECUTOR");
+
+            BackgroundExecutor executor = system.getBackgroundExecutor();
+
+            System.out.printf("Размер пула: %d потоков\n", executor.getPoolSize());
+            System.out.printf("Активных потоков: %d\n", executor.getActiveCount());
+            System.out.printf("Доступных потоков: %d\n", executor.getPoolSize() - executor.getActiveCount());
+            System.out.printf("Есть активные задачи: %s\n", executor.hasActiveTasks() ? "ДА" : "НЕТ");
+
+            ConsoleUtils.printInfo("Для остановки всех фоновых задач используйте 'workers-stop'");
+        });
+
+        // workers-stop — остановка всех фоновых задач
+        parser.registerCommand("workers-stop", "Остановка всех фоновых задач", (scanner, system) -> {
+            ConsoleUtils.printHeader("ОСТАНОВКА BACKGROUND EXECUTOR");
+
+            if (!ConsoleUtils.promptYesNo(scanner, "Вы уверены, что хотите остановить все фоновые задачи?")) {
+                ConsoleUtils.printInfo("Операция отменена");
+                return;
+            }
+
+            BackgroundExecutor executor = system.getBackgroundExecutor();
+            int activeCount = executor.getActiveCount();
+
+            System.out.printf("Останавливаю %d активных задач...\n", activeCount);
+            executor.shutdownGracefully(30);
+
+            ConsoleUtils.printSuccess("ExecutorService остановлен");
+        });
+
         parser.registerCommand("report-users-async", "Асинхронный отчёт по пользователям", (scanner, system) -> {
             ConsoleUtils.printHeader("АСИНХРОННЫЙ ОТЧЁТ ПО ПОЛЬЗОВАТЕЛЯМ");
 
@@ -933,7 +1063,7 @@ public class CommandRegistry {
             });
 
             thread.start();
-            System.out.println("✅ Отчёт генерируется в фоновом режиме. Вы можете продолжать работу.");
+            System.out.println(" Отчёт генерируется в фоновом режиме. Вы можете продолжать работу.");
         });
 
         parser.registerCommand("save-async", "Асинхронное сохранение данных", (scanner, system) -> {
@@ -950,7 +1080,7 @@ public class CommandRegistry {
             });
 
             thread.start();
-            System.out.println("✅ Данные сохраняются в фоновом режиме. Вы можете продолжать работу.");
+            System.out.println(" Данные сохраняются в фоновом режиме. Вы можете продолжать работу.");
         });
 
         // report-users — отчёт по пользователям

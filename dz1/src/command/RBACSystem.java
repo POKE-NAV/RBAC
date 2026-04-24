@@ -14,12 +14,14 @@ import util.AuditLog;
 
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
+import Executor.BackgroundExecutor;
 
 public class RBACSystem {
     private final UserManager userManager;
     private final RoleManager roleManager;
     private final AssignmentManager assignmentManager;
     private final AuditLog auditLog;
+    private final BackgroundExecutor backgroundExecutor;
     private String currentUser;
 
     public RBACSystem() {
@@ -27,10 +29,15 @@ public class RBACSystem {
         this.roleManager = new RoleManager();
         this.assignmentManager = new AssignmentManager();
         this.auditLog = new AuditLog();
+        this.backgroundExecutor = new BackgroundExecutor();
 
         assignmentManager.setUserManager(userManager);
         assignmentManager.setRoleManager(roleManager);
         roleManager.setAssignmentManager(assignmentManager);
+    }
+
+    public BackgroundExecutor getBackgroundExecutor() {
+        return backgroundExecutor;
     }
 
     public UserManager getUserManager() {
